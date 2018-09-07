@@ -92,6 +92,18 @@ func getTasksByProject(project string) {
 }
 
 /**
+ * Process MITS
+ *
+ * Process various MIT related functions.
+ *
+ * @param {string} arguments - all non-flagged cli arguments
+ */
+func processMITS(arguments []string) {
+	// case statements
+	fmt.Print("mit stuffs\n")
+}
+
+/**
  * Get All Tasks
  *
  * Print out all tasks.
@@ -125,8 +137,7 @@ func main() {
 	case strings.HasPrefix(arguments[0], "+"):
 		getTasksByProject(arguments[0])
 	case arguments[0] == "mit":
-		// if args behind mit do x otherwise list mits
-		fmt.Print("run mit's\n")
+		processMITS(arguments)
 	case arguments[0] == "a":
 		fmt.Print("add tasks\n")
 	case arguments[0] == "do":
