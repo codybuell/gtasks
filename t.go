@@ -66,6 +66,18 @@ func init() {
 }
 
 /**
+ * Parse Flags
+ *
+ * Function to handle all flagged arguments.
+ *
+ * @param {*flag.Flag} flag - pointer to a flag
+ *
+ */
+func parseFlags(flag *flag.Flag) {
+	fmt.Println(">", flag.Name, "value=", flag.Value)
+}
+
+/**
  * Get Tasks by Context
  *
  * Print out all tasks of a given context.
@@ -96,11 +108,48 @@ func getTasksByProject(project string) {
  *
  * Process various MIT related functions.
  *
- * @param {string} arguments - all non-flagged cli arguments
+ * @param {[]string} arguments - all non-flagged cli arguments
+ * @return {null}
  */
 func processMITS(arguments []string) {
 	// case statements
 	fmt.Print("mit stuffs\n")
+}
+
+/**
+ * Process Add
+ *
+ * Process adding a new task.
+ *
+ * @param {[]string} arguments - all non-flagged cli arguments
+ * @return {null}
+ */
+func processAdd(arguments []string) {
+	fmt.Print("add tasks\n")
+}
+
+/**
+ * Process Completion
+ *
+ * Process completing tasks.
+ *
+ * @param {[]string} arguments - all non-flagged cli arguments
+ * @return {null}
+ */
+func processCompletion(arguments []string) {
+	fmt.Print("complete tasks\n")
+}
+
+/**
+ * Process Deletion
+ *
+ * Process deleting tasks.
+ *
+ * @param {[]string} arguments - all non-flagged cli arguments
+ * @return {null}
+ */
+func processDeletion(arguments []string) {
+	fmt.Print("delete tasks\n")
 }
 
 /**
@@ -122,13 +171,13 @@ func getAllTasks() {
  */
 func main() {
 	// process our flagged arguments
-	fmt.Printf("versionBool: %t, helpBool: %t\n", versionBool, helpBool)
+	flag.Visit(parseFlags)
+
+	//fmt.Printf("versionBool: %t, helpBool: %t\n", versionBool, helpBool)
 
 	// gather non flagged arguments (array of all args)
 	arguments := flag.Args()
-
-	// print our arguments
-	fmt.Printf("%s\n", arguments)
+	//fmt.Printf("%s\n", arguments)    // print out args
 
 	// process our non-flagged arguments
 	switch {
@@ -139,11 +188,11 @@ func main() {
 	case arguments[0] == "mit":
 		processMITS(arguments)
 	case arguments[0] == "a":
-		fmt.Print("add tasks\n")
+		processAdd(arguments)
 	case arguments[0] == "do":
-		fmt.Print("complete tasks\n")
+		processCompletion(arguments)
 	case arguments[0] == "rm":
-		fmt.Print("delete tasks\n")
+		processDeletion(arguments)
 	default:
 		// if arg0 is a task id then show it, else usage
 		getAllTasks()
