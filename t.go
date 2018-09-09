@@ -1,53 +1,180 @@
-/**
- *
- *  Use first line of notes field for custom meta, denote meta with a meta:
- *    meta: @context !A
- *
- *
- *
- *  LISTING:
- *  t @somthing               list all tasks with @something context
- *                            context name
- *                            ------------
- *                            [YYYY.MM.DD] this is a task +project
- *  t +project                list all tasks in +project project
- *                            project name
- *                            ------------
- *                            [YYYY.MM.DD] this is a task @context
- *  t mit                     list the next 7 days worth of tasks grouped by day
- *  t                         list all tasks
- *                            [YYYY.MM.DD] this is a task +project @context
- *  t [task id]               show task info (title, notes / meta, etc)
- *
- *  MANIPULATING:
- *  t a [task text]           add a task, from within task text parse any
- *                            contexts (@[^ ]*) or projects (+[^ ]*)
- *  t mit [dow] [task text]   create a dated task (up to 7 days out) by dow
- *                            (day of week: mon, tue, wed, etc), relative day
- *                            (tommorrow, +2, etc), or hard date (YYYY.MM.DD)
- *  t do [task id]            mark task as complete
- *  t rm [task id]            delete a task
- */
-
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 	"strings"
+
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/tasks/v1"
 )
 
 var helpBool bool
 var versionBool bool
 
-/**
- * Initialization
- *
- * Define and grab our flagged arguments.
- *
- * @return {null}
- *
- */
+func getClient(config *oauth2.Config) *http.Client {
+	tokFile := "token.json"
+	tok, err := tokenFromFile(tokFile)
+	if err != nil {
+		tok = getTokenFromWeb(config)
+		saveToken(tokFile, tok)
+	}
+	return config.Client(context.Background(), tok)
+}
+
+func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Go to the following link in your browser then type the "+
+		"authorization code: \n%v\n", authURL)
+
+	var authCode string
+	if _, err := fmt.Scan(&authCode); err != nil {
+		log.Fatalf("Unable to read authorization code: %v", err)
+	}
+
+	tok, err := config.Exchange(oauth2.NoContext, authCode)
+	if err != nil {
+		log.Fatalf("Unable to retrieve token from web: %v", err)
+	}
+	return tok
+}
+
+func tokenFromFile(file string) (*oauth2.Token, error) {
+	f, err := os.Open(file)
+	defer f.Close()
+	if err != nil {
+		return nil, err
+	}
+	tok := &oauth2.Token{}
+	err = json.NewDecoder(f).Decode(tok)
+	return tok, err
+}
+
+func saveToken(path string, token *oauth2.Token) {
+	fmt.Printf("Saving credential file to: %s\n", path)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	defer f.Close()
+	if err != nil {
+		log.Fatalf("Unable to cache oauth token: %v", err)
+	}
+	json.NewEncoder(f).Encode(token)
+}
+
+func parseFlags(flag *flag.Flag) {
+	fmt.Println(">", flag.Name, "value=", flag.Value)
+	switch flag.Name {
+	case "v":
+		fmt.Print("show version\n")
+	case "h":
+		fmt.Print("show help\n")
+	default:
+		fmt.Printf("The %s option has not been configured yet\n", flag.Name)
+		printUsage()
+	}
+}
+
+func printUsage() {
+	/**
+	 * t [-vh] [arguments]
+	 *
+	 * flags:
+	 *   -v                                       show tool version
+	 *   -h                                       print out this help text
+	 *
+	 * arguments:
+	 *                                            no arguments prints all tasks
+	 *   @context                                 print all tasks of context
+	 *   +project                                 print all tasks of project (google task list)
+	 *   <id>                                     print details of task with id
+	 *   mit                                      print out mits
+	 *   mit <day>                                print out mits of specified day
+	 *                                            <day> can be:
+	 *                                                  day of week  (mon, monday)
+	 *                                                  relative day (tomorrow)
+	 *                                                  hard date    (YYYY.MM.DD)
+	 *   a <task> [@context] [+project]           add task (defaults to ?? project and no context)
+	 *   mit <day> <task> [@context] [+project]   add a mit (defaults to ?? project and no context)
+	 *                                            <day> can be:
+	 *                                                  day of week  (mon, monday)
+	 *                                                  relative day (tomorrow)
+	 *                                                  hard date    (YYYY.MM.DD)
+	 *   do <id>                                  complete task <id>
+	 *   rm <id>                                  delete task <id>
+	 *
+	 */
+	fmt.Print("print some usage here\n")
+}
+
+func getTasksByContext(context string) {
+	fmt.Printf("context: " + context + "\n")
+}
+
+func getTasksByProject(srv *tasks.Service, tasklist *tasks.TaskLists, project string) {
+	// if just + list projects, else list tasks in queried project
+	if project == "+" {
+		fmt.Println("Task Lists:")
+		if len(tasklist.Items) > 0 {
+			for _, i := range tasklist.Items {
+				fmt.Printf("%s (%s)\n", i.Title, i.Id)
+			}
+		} else {
+			fmt.Println("No task lists found.")
+		}
+	} else {
+		// strip + from project name
+		tasklistname := strings.Replace(project, "+", "", 1)
+
+		// grab tasklist id
+		for _, i := range tasklist.Items {
+			if i.Title == tasklistname {
+				r, err := srv.Tasks.List(i.Id).Do()
+				if err != nil {
+					log.Fatalf("Unable to retrieve task lists.", err)
+				}
+
+				fmt.Println("Tasks in " + i.Title + ":")
+				if len(r.Items) > 0 {
+					for _, t := range r.Items {
+						fmt.Printf("%s (%s)\n", t.Title, t.Id)
+					}
+				} else {
+					fmt.Println("No projects found.")
+				}
+				break
+			}
+		}
+	}
+
+}
+
+func processMITS(arguments []string) {
+	// case statements
+	fmt.Print("mit stuffs\n")
+}
+
+func processAdd(arguments []string) {
+	fmt.Print("add tasks\n")
+}
+
+func processCompletion(arguments []string) {
+	fmt.Print("complete tasks\n")
+}
+
+func processDeletion(arguments []string) {
+	fmt.Print("delete tasks\n")
+}
+
+func getAllTasks() {
+	fmt.Printf("print all tasks\n")
+}
+
 func init() {
 	// define usages
 	const (
@@ -65,111 +192,33 @@ func init() {
 	flag.Parse()
 }
 
-/**
- * Parse Flags
- *
- * Function to handle all flagged arguments.
- *
- * @param {*flag.Flag} flag - pointer to a flag
- *
- */
-func parseFlags(flag *flag.Flag) {
-	fmt.Println(">", flag.Name, "value=", flag.Value)
-}
-
-/**
- * Get Tasks by Context
- *
- * Print out all tasks of a given context.
- *
- * @param {string} context - context to query
- * @return {null}
- *
- */
-func getTasksByContext(context string) {
-	fmt.Printf("context: " + context + "\n")
-}
-
-/**
- * Get Tasks by Project
- *
- * Print out all tasks of a given project.
- *
- * @param {string} project - project to query
- * @return {null}
- *
- */
-func getTasksByProject(project string) {
-	fmt.Printf("project: " + project + "\n")
-}
-
-/**
- * Process MITS
- *
- * Process various MIT related functions.
- *
- * @param {[]string} arguments - all non-flagged cli arguments
- * @return {null}
- */
-func processMITS(arguments []string) {
-	// case statements
-	fmt.Print("mit stuffs\n")
-}
-
-/**
- * Process Add
- *
- * Process adding a new task.
- *
- * @param {[]string} arguments - all non-flagged cli arguments
- * @return {null}
- */
-func processAdd(arguments []string) {
-	fmt.Print("add tasks\n")
-}
-
-/**
- * Process Completion
- *
- * Process completing tasks.
- *
- * @param {[]string} arguments - all non-flagged cli arguments
- * @return {null}
- */
-func processCompletion(arguments []string) {
-	fmt.Print("complete tasks\n")
-}
-
-/**
- * Process Deletion
- *
- * Process deleting tasks.
- *
- * @param {[]string} arguments - all non-flagged cli arguments
- * @return {null}
- */
-func processDeletion(arguments []string) {
-	fmt.Print("delete tasks\n")
-}
-
-/**
- * Get All Tasks
- *
- * Print out all tasks.
- *
- * @return {null}
- *
- */
-func getAllTasks() {
-	fmt.Printf("print all tasks\n")
-}
-
-/**
- * Main
- *
- * @return {null}
- */
 func main() {
+
+	// read the credentials file
+	creds, err := ioutil.ReadFile("credentials.json")
+	if err != nil {
+		log.Fatalf("Unable to read client secret file: %v", err)
+	}
+
+	// if modifying scopes, delete the previously saved token.json
+	config, err := google.ConfigFromJSON(creds, tasks.TasksReadonlyScope)
+	if err != nil {
+		log.Fatalf("Unable to parse client secret file to config: %v", err)
+	}
+	client := getClient(config)
+
+	// initialize new tasks client
+	srv, err := tasks.New(client)
+	if err != nil {
+		log.Fatalf("Unable to retrieve tasks Client %v", err)
+	}
+
+	// query tasks lists
+	tasklist, err := srv.Tasklists.List().Do()
+	if err != nil {
+		log.Fatalf("Unable to retrieve task lists.", err)
+	}
+
 	// process our flagged arguments
 	flag.Visit(parseFlags)
 
@@ -179,12 +228,17 @@ func main() {
 	arguments := flag.Args()
 	//fmt.Printf("%s\n", arguments)    // print out args
 
+	// bail if no aguments
+	if len(arguments) == 0 {
+		return
+	}
+
 	// process our non-flagged arguments
 	switch {
 	case strings.HasPrefix(arguments[0], "@"):
 		getTasksByContext(arguments[0])
 	case strings.HasPrefix(arguments[0], "+"):
-		getTasksByProject(arguments[0])
+		getTasksByProject(srv, tasklist, arguments[0])
 	case arguments[0] == "mit":
 		processMITS(arguments)
 	case arguments[0] == "a":

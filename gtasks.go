@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"encoding/json"
@@ -14,15 +14,6 @@ import (
 	"google.golang.org/api/tasks/v1"
 )
 
-/**
- * Get Client
- *
- * Retrieve a token, saves it, then return the generated client.
- *
- * @param {type} config - ??
- * @param {type} oauth2.Config - ??
- * @return {type} client
- */
 func getClient(config *oauth2.Config) *http.Client {
 	tokFile := "token.json"
 	tok, err := tokenFromFile(tokFile)
@@ -33,15 +24,6 @@ func getClient(config *oauth2.Config) *http.Client {
 	return config.Client(context.Background(), tok)
 }
 
-/**
- * Get Token From Web
- *
- * Request and retunr a token from the web.
- *
- * @param {type} config - ??
- * @param {type} oauth2.Token - ??
- * @return {type} token
- */
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	fmt.Printf("Go to the following link in your browser then type the "+
@@ -59,14 +41,6 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	return tok
 }
 
-/**
- * Token From File
- *
- * Retrieve a token from a local file.
- *
- * @param {string} file - file to get token from
- * @return {type} token
- */
 func tokenFromFile(file string) (*oauth2.Token, error) {
 	f, err := os.Open(file)
 	defer f.Close()
@@ -78,15 +52,6 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	return tok, err
 }
 
-/**
- * Save Token
- *
- * Saves a token to a file path.
- *
- * @param {string} path - location to save token
- * @param {type} token - token to store
- * @return void
- */
 func saveToken(path string, token *oauth2.Token) {
 	fmt.Printf("Saving credential file to: %s\n", path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
@@ -95,16 +60,6 @@ func saveToken(path string, token *oauth2.Token) {
 		log.Fatalf("Unable to cache oauth token: %v", err)
 	}
 	json.NewEncoder(f).Encode(token)
-}
-
-/**
- * Initialiaze Client
- *
- * Starts up a Google Tasks client.
- *
- * @ret
- */
-func initClient() {
 }
 
 func main() {
